@@ -1,0 +1,281 @@
+---
+title: "Exploration de la BD Decathlon"
+author: "Reem othmen"
+date: "2025-08-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+ 
+ Installer le package puis charger le jeu de données.
+```{r}
+library(FactoMineR)
+data(decathlon)
+View(decathlon)
+```
+
+Décrire le jeu de données
+```{r}
+str(decathlon)
+summary(decathlon)
+```
+
+Les données contiennent les performances d' athlètes lors de deux compétitions.
+Le tableau de données contient 41 lignes et 13 colonnes.
+Les colonnes de 1 à 12 sont des variables continues: les dix premières colonnes correspondent aux performances des athlètes pour les dix épreuves du decathlon. Ce sont les variables actives du jeu de données. Les colonnes 11 et 12 correspondent respectivement au rang et au nombre de points obtenus et calculés sur la base des variables actives. La dernière colonne est une variable qualitative correspondant au nom de la compétition (Jeux Olympiques de 2004 ou Decastar 2004).
+On ?tudie les profils d'ahtl?tes uniquement en fonction de leur performance. 
+Les variables actives ne seront donc que celles qui concernent les dix ?preuves du d?cathlon. 
+Les autres variables ("Rank", "Points" et "Competition") n'appartiennent pas aux profils d'athl?tes et utilisent une information d?j? donn?e par les autres variables (dans le cas de "Rank"et "Points") mais il est int?ressant de les confronter aux composantes principales. Nous les utiliserons comme variables illustratives.
+
+
+
+
+
+ Comparer les scores des athlètes pour les deux types de compétitions. Penser à un tableau résumé (ddply dans package plyr )
+
+```{r, echo=TRUE}
+library(plyr)
+data(decathlon)
+attach(decathlon)
+colnames(decathlon)
+ddply(decathlon, c("Competition"), summarise, 
+      SomPoints =sum(Points), moy1500m= mean(`1500m`))
+
+```
+ Normalisation
+
+```{r}
+decathlon2=scale(decathlon[,1:12]) # données normalisées= centrées réduites
+View(decathlon2)
+colnames(decathlon2)
+X=cbind.data.frame(decathlon2, decathlon$Competition)# tout le jeu
+# X est la matrice de données centrée réduite
+View(X)
+colnames(X)=colnames(decathlon)
+
+```
+
+
+Comparer les résultats des deux compétitions pour toutes les variables quantitatives. Penser à représenter les boxplots de toutes les variables quantitatives : 
+
+```{r, echo=TRUE}
+
+library(reshape2)
+dfmelt<-melt(X, measure.vars = 1:12)
+View(dfmelt)
+
+library(ggplot2)
+gr<-ggplot(dfmelt, aes(y=value, x=Competition, fill=Competition))+geom_boxplot()+facet_wrap(~variable)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+gr
+```
+
+Étudier les corrélations entre les différentes variables quantitatives. Penser à tracer un corrélogramme 
+
+```{r ,echo=TRUE,fig.width=10,fig.height=7}
+library(corrgram)
+cor(X[,1:12]) # Matrice des corrélations 
+corrgram(X[,-13], order=TRUE,lower.panel=panel.conf)
+```
+ Etudier la dispersion des individus par rapport aux variables High Jump, Long.Jump. Intepréter
+```{r}
+attach(decathlon)
+ggplot(X,aes(x=High.jump, y=Long.jump))+geom_point()+ geom_text(label=rownames(X))
+```
+Programmation des étapes de l'ACP 
+
+
+
+
+
+Section 3.
+Normaliser : centrer et r´eduire les variables d’int´erˆet : retrancher la moyenne et
+diviser par l’´ecart-type. V´erifier la normalisation.
+
+```{r}
+library(FactoMineR)
+data("decathlon")
+View(decathlon)
+Y=as.matrix(decathlon[,1:10])
+g=colMeans(Y)
+g
+View(Y)
+Y=sweep(Y,MARGIN=2,STATS=g,FUN="-")
+View(Y)
+colMeans(Y)
+round(colMeans(Y),3) # vérifer que les données sont bien centrées. On obtient alors une nouvelle variable de moyenne 0.
+n=nrow(Y) # nombre individus
+p=ncol(Y) # nombre de variables 
+et= apply(Y,MARGIN=2,function(x) sqrt(sum(x^2)/n) )
+et
+Y=sweep(Y,2, et, FUN="/")
+View(Y)
+apply(Y,2,function(x) sqrt(sum(x^2)/n))# jeu de données bien réduit
+
+
+View(Y)
+sqrt(colSums(Y^2)/n)
+#Réduire c’est diviser chaque valeur d’une variable par son écart-type , on obtient alors une nouvelle variable d’écart type 1.
+
+
+```
+
+D´eterminer les valeurs propres et les vecteurs propres. Adopter un SVD.
+
+
+```{r}
+# Faire une décomposition en val sing SVD,  V=X'DX
+
+D=diag(rep(1/n,n))
+View(D)
+V=t(Y)%*%D%*%Y
+View(V)
+n=nrow(Y)
+p=ncol(Y)
+M=diag(rep(1,p))
+M%*%V
+vs=eigen(M%*%V)
+lambda=vs$values # valeurs propres
+lambda
+vp=vs$vectors # vecteurs propres 
+vp
+C=Y%*%vp # matrice des composantes principales 
+C
+View(C)
+ 
+ 
+ 
+
+```
+
+
+Section 4
+  
+la fonction PCA dans le package FactoMineR  
+ 
+```{r}
+library(FactoMineR)
+colnames(decathlon)
+res.pca=PCA(decathlon,quanti.sup = 11:12,quali.sup = 13)
+```
+ 
+ Etude de l'inertie
+ 
+```{r, echo=TRUE}
+
+res.pca$eig # les valeurs propres 
+
+```
+
+# Les deux premiers facteurs principaux r?sument 50% de l'inertie totale, 
+#'est ? dire 50% de la variabilit? totale du nuage des individus (ou variables) 
+#est repr?esent?ee par le plan. Cependant, la variabilit?e des performances 
+#ne peut pas ?tre r?sum?e par les 2 premi?res dimensions seulement. 
+#Il peut ?galement tr?s int?ressant d'interpr?ter composantes 3 et 4 dont 
+#l'inertie est sup?erieur 1 (cette valeur est utilis?ee comme une r?ef?erence
+#car elle repr?esente, dans le cas de variables standardis?ees, la contribution 
+#d'une seule variable).
+
+
+
+ Reporter sur un graphique : éblouis des valeurs propres 
+```{r}
+barplot(res.pca$eig[,1], main= " Eblouis des valeurs propres", names.arg=paste("lambda", 1:nrow(res.pca$eig)))
+
+```
+
+ coordonnées, cos2, contrib 
+```{r}
+
+## Etude des individus : nuage de points 
+res.pca$ind$coord #  les coordonnées des individus sur les axes ( C programme)
+# sur le nuage de points
+res.pca$ind$cos2
+res.pca$ind$contrib # la contribution de chaque individu à la construction de l'axe, sur le nuage de points
+
+# Etude des variables 
+res.pca$var$coord # coordonnées des variables sur les axes du cercle de corrélation
+res.pca$var$contrib # la contribution de chaque variable à la construction de l'axe, cercle 
+res.pca$var$cos2 # qualité de représentation, permet de synthétiser 
+
+# la corrélation entre la dimension est la variable est expliquée par le cos de l'angle entre eux.
+names(res.pca)
+res.pca$var$cos2# qualité de représentation
+res.pca$var$cor # corrélation= sqrt(cos2), la corrélation avec les axes 
+
+```
+
+plan de composantes 3 et 4
+
+```{r}
+res.pca2=PCA(decathlon,quanti.sup = 11:12,quali.sup = 13, axes = c(3,4))
+```
+
+ Habillage selon la variable catégorielle 
+
+```{r}
+
+plot.PCA(res.pca, choix="ind", habillage=13) # un habillage = coloration selon la variable qualitative 
+plot.PCA(res.pca, choix = "var")
+
+
+```
+#variable qualitative supplémentaire = variable catégorielle
+#qui permet d'étudier la typlogie(catégorisation) des individus 
+#les modalit?s d'une variable illustrative sont significativement diff?rentes les unes des autres, 
+#on peut tracer des ellipses de confiance autour d'elle
+# s'il ya chevauchement des ellipses,les modalit?s ne distinguent pas bien les individus , pas de typologie
+
+
+
+
+```{r}
+plot.PCA(res.pca, choix="ind", habillage=13, ellipse=ellipse.coord)
+plotellipses(res.pca) # les ellipses de confiance sont trcées autour du barycentre des individus de chaque catégorie. Ici, les ellipses chevauchent ( superposées), donc y'a pas une typologie entre les caractériqtiques( performences) des individus 
+
+```
+
+
+#Q9- PCA with factoextra 
+
+```{r}
+library(factoextra)
+fviz_pca_ind(res.pca,geom.ind =c("text", "point"), repel= TRUE, col.ind="contrib")
+#3 dégradation de cloration cercle de corrélations 
+fviz_pca_var(res.pca, col.var = "cos2", invisible=c("quanti.sup") , repel=TRUE)+scale_color_gradient2(low = "green", mid = "red", high = "blue", midpoint =0.5)
+fviz_pca_var(res.pca, col.var = "cos2", invisible=c("quanti.sup") , repel=TRUE, gradient.cols=c("#800080",  "#FF00FF", "#808000"))
+
+fviz_pca_var(res.pca, col.var="cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel=TRUE)
+
+fviz_pca_biplot(res.pca, col.ind = "red", col.var = "blue")
+fviz_screeplot(res.pca)# ébluios des valeurs propres
+
+groups <- as.factor(decathlon2$Competition[1:23])
+fviz_pca_ind(res.pca,
+             col.ind = groups, # colorer par groupes
+             palette = c("#00AFBB",  "#FC4E07"),
+             addEllipses = TRUE, # Ellipses de concentrations
+             ellipse.type = "confidence",
+             legend.title = "Groups",
+             repel = TRUE
+             )
+
+```
+
+
+
+
+# Package ade4
+
+```{r}
+library(ade4)
+decathlon2=decathlon[,1:10]
+res.pca2 <- dudi.pca(decathlon2, scannf = TRUE, nf = 5)
+fviz_pca_biplot(res.pca2, repel = TRUE,
+                col.var = "#2E9FDF", 
+                col.ind = "#696969"  
+                )
+screeplot(res.pca2, main = "Screeplot - Eigenvalues")
+```
+
